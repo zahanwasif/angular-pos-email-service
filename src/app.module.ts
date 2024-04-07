@@ -3,9 +3,18 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { FirebaseModule } from './firebase/firebase.module';
 import { EmailModule } from './email/email.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports: [FirebaseModule, EmailModule],
+  imports: [
+    ConfigModule.forRoot({
+      envFilePath: ['.env.beta', '.env'],
+      ignoreEnvFile: false,
+      isGlobal: true,
+    }),
+    FirebaseModule,
+    EmailModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
