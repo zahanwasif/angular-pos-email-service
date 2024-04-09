@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Email } from './email/email';
 import { Firebase } from './firebase/firebase';
-import { getSummaryInput } from './interfaces/sendEmailDto';
 import { createPdf } from '@saemhco/nestjs-html-pdf';
 import * as path from 'path';
+import * as fs from 'fs';
+import { Timestamp } from '@google-cloud/firestore';
 
 @Injectable()
 export class AppService {
@@ -16,52 +17,115 @@ export class AppService {
     return 'Hello World!';
   }
 
-  createPDF() {
+  async createPDF(startDate: Timestamp, endDate: Timestamp) {
+    const expenses = await this.firebaseService.getExpensesWithinRange(
+      startDate,
+      endDate,
+    );
+
+    const products = await this.firebaseService.getAllProducts();
+    const productsHash = {};
+    products.forEach((product: any) => {
+      productsHash[product.id] = product.name;
+    });
+
+    let expenseSum = 0;
+    expenses.forEach((record: any) => {
+      expenseSum += record.amount;
+    });
+    const sales = await this.firebaseService.getSalesWithinRange(
+      startDate,
+      endDate,
+    );
+
+    var productSales = {};
+    sales.forEach((record: any) => {
+      JSON.parse(record.carts).forEach((item: any) => {
+        let productId = item.id;
+
+        if (!productSales[productId]) {
+          productSales[productId] = {
+            name: productsHash[productId],
+            quantitySold: item.cartQuantity,
+            salesAmount: item.finalPrice * parseInt(item.cartQuantity),
+            buyingCost: item.unit_price * parseInt(item.cartQuantity),
+            grossProfit:
+              item.finalPrice * parseInt(item.cartQuantity) -
+              item.unit_price * parseInt(item.cartQuantity),
+          };
+        } else {
+          productSales[productId].quantitySold += item.cartQuantity;
+
+          productSales[productId].buyingCost +=
+            item.unit_price * parseInt(item.cartQuantity);
+
+          productSales[productId].grossProfit +=
+            item.finalPrice * parseInt(item.cartQuantity) -
+            item.unit_price * parseInt(item.cartQuantity);
+
+          productSales[productId].salesAmount +=
+            item.finalPrice * parseInt(item.cartQuantity);
+        }
+      });
+    });
+
+    const productSalesArray = Object.values(productSales);
+    // add average sales
+    productSalesArray.forEach((product: any, index: number) => {
+      const salesAverage = product.salesAmount / product.quantitySold;
+      productSalesArray[index]['salesAverage'] = salesAverage.toFixed(2);
+
+      const buyingSalesAvg = product.buyingCost / product.quantitySold;
+      productSalesArray[index]['buyingSalesAvg'] = buyingSalesAvg.toFixed(2);
+
+      const grossProfitPercentage =
+        (product.grossProfit / product.salesAmount) * 100;
+
+      productSalesArray[index]['grossProfitPercentage'] =
+        grossProfitPercentage.toFixed(2).toString() + '%';
+    });
+
+
+    const pos = await this.firebaseService.getPurchaseOrdersWithinRange(startDate, endDate);
+    pos.forEach((po: any) => {
+      po?.orderlines.forEach((ol)=>{
+        ol.name = productsHash[ol.product_id]
+      })
+    })
+
+    const productAggregates = {
+      quantitySold: 0,
+      salesAmount: 0,
+      buyingCost: 0,
+      grossProfit: 0,
+    };
+
+    productSalesArray.forEach((product: any) => {
+      productAggregates.quantitySold += product.quantitySold;
+      productAggregates.salesAmount += product.salesAmount;
+      productAggregates.buyingCost += product.buyingCost;
+      productAggregates.grossProfit += product.grossProfit;
+    });
+
+    const transactions = await this.firebaseService.getTransactionsWithinRange(startDate, endDate)
+    var customerTransactionSum = 0
+    transactions.forEach((transaction: any) => {
+      if(transaction.type == 'credit'){
+        customerTransactionSum += parseInt(transaction.amount)
+      }else {
+        customerTransactionSum -= parseInt(transaction.amount)
+      }
+    })
+
     const data = {
-      title: 'My PDF file',
-      status: 'paid',
-      invoiceId: '#123-123',
-      customerName: 'Saúl Escandón',
-      customerAddress: '1234 Main St',
-      customerCity: 'Huánuco',
-      customerState: 'Huánuco',
-      customerCountry: 'Perú',
-      customerPhone: '555-555-5555',
-      items: [
-        {
-          description: 'custom suit',
-          detail: {
-            color: 'blue',
-            size: '42',
-          },
-          price: {
-            price0: 1500.0,
-            price: 1050.0,
-            save: 25,
-          },
-          quantity: 1,
-          image:
-            'https://mdbcdn.b-cdn.net/img/Photos/Horizontal/E-commerce/new/img(4).webp',
-        },
-        {
-          description: 'playstation 5',
-          detail: {
-            color: 'white',
-            size: '45cmx45cm',
-          },
-          price: {
-            price0: 500.0,
-            price: 250.0,
-            save: 50,
-          },
-          quantity: 2,
-          image:
-            'https://promart.vteximg.com.br/arquivos/ids/931599-1000-1000/image-b08a9ed36e114598bc56d7d4a5e7dd2d.jpg?v=637569550232800000',
-        },
-      ],
-      subTotal: 1550.0,
-      shipping: 15.0,
-      total: 1565.0,
+      expenses: expenses,
+      expenseSum: expenseSum,
+      sales: productSalesArray,
+      productAggregates: productAggregates,
+      inventory: products,
+      pos: pos,
+      customerTransactions: transactions,
+      customerTransactionSum: customerTransactionSum
     };
     const options = {
       format: 'A4',
@@ -72,9 +136,8 @@ export class AppService {
         right: '10mm',
         bottom: '15mm',
       },
-      headerTemplate: `<div style="width: 100%; text-align: center;"><span style="font-size: 20px;">@saemhco CORP</span><br><span class="date" style="font-size:15px"><span></div>`,
-      footerTemplate:
-        '<div style="width: 100%; text-align: center; font-size: 10px;">Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>',
+      // headerTemplate: `<div style="width: 100%; text-align: center;"><span style="font-size: 20px;">Muzaffar & Sons By New Lucky Traders</span></div>`,
+      footerTemplate: `<div style="width: 100%; text-align: center; font-size: 10px;">From ${this.firebaseService.timestampToDateString(startDate)} till ${this.firebaseService.timestampToDateString(endDate)}</div>`,
       landscape: true,
     };
     const filePath = path.join(
@@ -86,9 +149,9 @@ export class AppService {
     return createPdf(filePath, options, data);
   }
 
-  async getSummary() {
-    const buffer = await this.createPDF();
-    const email = await this.emailService.sendEmail(buffer);
-    return email;
+  async getSummary(startDate: Timestamp, endDate: Timestamp, email: string) {
+    const buffer = await this.createPDF(startDate, endDate);
+    const subject = `Report From ${this.firebaseService.timestampToDateString(startDate)} till ${this.firebaseService.timestampToDateString(endDate)}`
+    return await this.emailService.sendEmail(buffer, email, subject);
   }
 }
