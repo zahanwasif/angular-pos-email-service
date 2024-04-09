@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post, Res } from '@nestjs/common';
 import { AppService } from './app.service';
 import { getSummaryInput } from './interfaces/sendEmailDto';
-import * as fs from 'fs';
+import { Timestamp } from '@google-cloud/firestore';
 
 @Controller()
 export class AppController {
@@ -13,7 +13,9 @@ export class AppController {
   }
   // @Body() getSummaryInput: getSummaryInput
   @Post('get-summary')
-  async getSummary(): Promise<any> {
-    return this.appService.getSummary();
+  async getSummary(@Body() body: getSummaryInput): Promise<any> {
+    const startDate = Timestamp.fromDate(new Date(body.startDate));
+    const endDate = Timestamp.fromDate(new Date(body.endDate));
+    return this.appService.getSummary(startDate, endDate, body.email);
   }
 }
