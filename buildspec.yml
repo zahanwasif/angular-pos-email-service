@@ -1,0 +1,27 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - npm -v
+      - npm install npm@9.6.7 -g
+      - npm -v
+      - npm cache clean -f
+      - n 18.17.0
+      - npm i
+
+  build:
+    commands:
+      - npm run build
+
+  post_build:
+    commands:
+      - cp -R node_modules/ dist/node_modules
+      - cp Procfile dist/Procfile
+      - cp package.json dist/package.json
+
+artifacts:
+  files:
+    - '**/*'
+  discard-paths: no
+  base-directory: dist
