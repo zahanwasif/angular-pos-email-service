@@ -25,6 +25,7 @@ const firebaseProvider = {
       universe_domain: configService.get<string>('UNIVERSE_DOMAIN'),
     } as admin.ServiceAccount;
 
+    console.log('firebaseConfig', firebaseConfig);
     return admin.initializeApp({
       credential: admin.credential.cert(firebaseConfig),
     });

@@ -10,8 +10,12 @@ import { MailerModule } from '@nestjs-modules/mailer';
     ConfigModule,
     MailerModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => {
-        console.log(configService.get('EMAIL'), configService.get('PASSWORD'));
+      useFactory: (configService: ConfigService) => {
+        console.log(
+          'here is the email and password',
+          configService.get('EMAIL'),
+          configService.get('PASSWORD'),
+        );
         return {
           transport: {
             host: 'smtp.gmail.com',
