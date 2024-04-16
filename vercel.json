@@ -9,5 +9,12 @@
       "dest": "src/main.ts",
       "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     }
+  ],
+  "builds": [
+    {
+      "src": "src/main.ts",
+      "use": "@now/node",
+      "config": { "maxLambdaSize": "15mb" }
+    }
   ]
 }
