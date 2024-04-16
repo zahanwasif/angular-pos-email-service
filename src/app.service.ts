@@ -85,13 +85,15 @@ export class AppService {
         grossProfitPercentage.toFixed(2).toString() + '%';
     });
 
-
-    const pos = await this.firebaseService.getPurchaseOrdersWithinRange(startDate, endDate);
+    const pos = await this.firebaseService.getPurchaseOrdersWithinRange(
+      startDate,
+      endDate,
+    );
     pos.forEach((po: any) => {
-      po?.orderlines.forEach((ol)=>{
-        ol.name = productsHash[ol.product_id]
-      })
-    })
+      po?.orderlines.forEach((ol) => {
+        ol.name = productsHash[ol.product_id];
+      });
+    });
 
     const productAggregates = {
       quantitySold: 0,
@@ -107,15 +109,18 @@ export class AppService {
       productAggregates.grossProfit += product.grossProfit;
     });
 
-    const transactions = await this.firebaseService.getTransactionsWithinRange(startDate, endDate)
-    var customerTransactionSum = 0
+    const transactions = await this.firebaseService.getTransactionsWithinRange(
+      startDate,
+      endDate,
+    );
+    var customerTransactionSum = 0;
     transactions.forEach((transaction: any) => {
-      if(transaction.type == 'credit'){
-        customerTransactionSum += parseInt(transaction.amount)
-      }else {
-        customerTransactionSum -= parseInt(transaction.amount)
+      if (transaction.type == 'credit') {
+        customerTransactionSum += parseInt(transaction.amount);
+      } else {
+        customerTransactionSum -= parseInt(transaction.amount);
       }
-    })
+    });
 
     const data = {
       expenses: expenses,
@@ -125,7 +130,7 @@ export class AppService {
       inventory: products,
       pos: pos,
       customerTransactions: transactions,
-      customerTransactionSum: customerTransactionSum
+      customerTransactionSum: customerTransactionSum,
     };
     const options = {
       format: 'A4',
@@ -146,12 +151,13 @@ export class AppService {
       'templates',
       'pdf-invoice.hbs',
     );
-    return createPdf(filePath, options, data);
+
+    return await createPdf(filePath, options, data);
   }
 
   async getSummary(startDate: Timestamp, endDate: Timestamp, email: string) {
     const buffer = await this.createPDF(startDate, endDate);
-    const subject = `Report From ${this.firebaseService.timestampToDateString(startDate)} till ${this.firebaseService.timestampToDateString(endDate)}`
+    const subject = `Report From ${this.firebaseService.timestampToDateString(startDate)} till ${this.firebaseService.timestampToDateString(endDate)}`;
     return await this.emailService.sendEmail(buffer, email, subject);
   }
 }
