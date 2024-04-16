@@ -2,12 +2,7 @@
   "buildCommand": "npm run build",
   "installCommand": "npm install && node ./node node_modules/puppeteer/install.js",
   "version": 2,
-  "builds": [
-    {
-      "src": "src/main.ts",
-      "use": "@vercel/node"
-    }
-  ],
+
   "routes": [
     {
       "src": "/(.*)",
